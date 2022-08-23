@@ -21,6 +21,8 @@ from wisp.datasets.transforms import *
 
 str2optim = {m.lower(): getattr(torch.optim, m) for m in dir(torch.optim) if m[0].isupper()}
 
+def register_class(cls, name):
+    globals()[name] = cls
 
 def parse_options(return_parser=False):
     """Function used to parse options.
@@ -405,6 +407,7 @@ def get_modules_from_config(args):
         transform = SampleRays(args.num_rays_sampled_per_img)
         train_dataset = MultiviewDataset(**vars(args), transform=transform)
         train_dataset.init()
+        
         if pipeline.nef.grid is not None:
             if isinstance(pipeline.nef.grid, OctreeGrid):
                 if not args.valid_only and not pipeline.nef.grid.blas_initialized():
@@ -429,10 +432,12 @@ def get_modules_from_config(args):
         
         if pipeline.nef.grid is not None:
             if isinstance(pipeline.nef.grid, OctreeGrid):
-                if not args.valid_only:
+                
+                if not args.valid_only and not pipeline.nef.grid.blas_initialized():
                     pipeline.nef.grid.init_from_mesh(
                         args.dataset_path, sample_tex=args.sample_tex)
                     pipeline.to(device)
+                
                 train_dataset.init_from_grid(pipeline.nef.grid, args.samples_per_voxel)
             else:
                 train_dataset.init_from_mesh(args.dataset_path, args.mode_mesh_norm)
