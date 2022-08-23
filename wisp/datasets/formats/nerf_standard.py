@@ -46,7 +46,8 @@ def _load_standard_imgs(frame, root, mip=None):
     basename = os.path.basename(os.path.splitext(fpath)[0])
     if os.path.splitext(fpath)[1] == "":
         # Assume PNG file if no extension exists... the NeRF synthetic data follows this convention.
-        fpath += '.png'
+        # fpath += '.png'
+        fpath += '.jpg'
 
     # For some reason instant-ngp allows missing images that exist in the transform but not in the data.
     # Handle this... also handles the above case well too.
@@ -110,7 +111,7 @@ def load_nerf_standard_data(root, split='train', bg_color='white', num_workers=-
         mip = 0
 
     if len(transforms) == 1:
-        transform_dict['train'] = transforms[0]
+        transform_dict[split] = transforms[0]
         train_only = True
     elif len(transforms) == 3:
         fnames = [os.path.basename(transform) for transform in transforms]

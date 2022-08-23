@@ -11,7 +11,7 @@
 # 23.54 PSNR at the final validation
 
 global:
-    exp_name: 'test-triplanar-nerf'
+    exp_name: 'test-triplanar-nerf_planes'
 
 optimizer:
     optimizer_type: 'rmsprop'
@@ -30,9 +30,9 @@ renderer:
     raymarch_type: 'ray'
     render_batch: 4000
     camera_origin:
-        - -3.0
-        - 0.65
-        - -3.0
+        - 0.0
+        - 0.0
+        - 0.0
     shading_mode: 'rb'
     render_res:
         - 1024
