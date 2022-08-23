@@ -20,7 +20,7 @@ optimizer:
 dataset:
     dataset_type: 'multiview'
     num_rays_sampled_per_img: 4096
-    multiview_dataset_format: 'standard'
+    multiview_dataset_format: 'rtmv'
     mip: 2
     bg_color: 'white'
 
