@@ -6,13 +6,12 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'vqad_nerf.yaml'
+parent: 'triplanar_nerf_planes.yaml'
 
 global:
-    exp_name: 'vqad-nerf-interactive'
+    exp_name: 'triplanar-nerf-planes-interactive'
 
 dataset:
-    # bg_color: 'black'
     bg_color: 'white'
 
 trainer:
