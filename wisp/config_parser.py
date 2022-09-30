@@ -156,6 +156,8 @@ def parse_options(return_parser=False):
                             help='Sample the normals.')
     data_group.add_argument('--num-samples', type=int, default=100000,
                             help='Number of samples per mode (or per epoch for SPC)')
+    data_group.add_argument('--num-samples-on-mesh', type=int, default=100000000,
+                            help='Number of samples generated on mesh surface to initialize occupancy structures')
     data_group.add_argument('--sample-tex', action='store_true',
                             help='Sample textures')
     data_group.add_argument('--mode-mesh-norm', type=str, default='sphere',
@@ -392,8 +394,7 @@ def get_modules_from_config(args):
     """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     nef = globals()[args.nef_type](**vars(args))
-    tracer = globals()[args.tracer_type]()
-    tracer.set_defaults(**vars(args))
+    tracer = globals()[args.tracer_type](**vars(args))
     pipeline = Pipeline(nef, tracer)
 
     if args.pretrained:
@@ -435,7 +436,7 @@ def get_modules_from_config(args):
                 
                 if not args.valid_only and not pipeline.nef.grid.blas_initialized():
                     pipeline.nef.grid.init_from_mesh(
-                        args.dataset_path, sample_tex=args.sample_tex)
+                        args.dataset_path, sample_tex=args.sample_tex, num_samples=args.num_samples_on_mesh)
                     pipeline.to(device)
                 
                 train_dataset.init_from_grid(pipeline.nef.grid, args.samples_per_voxel)

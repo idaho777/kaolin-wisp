@@ -20,6 +20,8 @@ from wisp.gfx.datalayers import Datalayers
 
 @dataclass
 class FramePayload:
+    """This is a dataclass which holds metadata for the current frame.
+    """
     camera: Camera
     visible_objects: Set[str]
     interactive_mode: bool
@@ -27,7 +29,7 @@ class FramePayload:
     render_res_y: int
     time_delta: float   # In seconds
     clear_color: Tuple[float, float, float]
-
+    channels: Set[str] # Channels requested for the render.
 
 class BottomLevelRenderer(ABC):
 
@@ -44,6 +46,7 @@ class BottomLevelRenderer(ABC):
         pass
 
     def needs_refresh(self, payload: FramePayload, *args, **kwargs) -> bool:
+        """ Override to optimize cases when the neural field does not require rendering from scratch. """
         return True
 
     @abstractmethod
@@ -141,6 +144,10 @@ class RayTracedRenderer(BottomLevelRenderer):
 
     def post_render(self) -> None:
         pass
+
+    @property
+    def device(self) -> torch.device:
+        return self.nef.device
 
 
 class RasterizedRenderer(BottomLevelRenderer):
