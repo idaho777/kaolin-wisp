@@ -6,6 +6,7 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
+from genericpath import isfile
 import os
 import glob
 import time
@@ -47,7 +48,10 @@ def _load_standard_imgs(frame, root, mip=None):
     if os.path.splitext(fpath)[1] == "":
         # Assume PNG file if no extension exists... the NeRF synthetic data follows this convention.
         # fpath += '.png'
-        fpath += '.jpg'
+        if os.path.isfile(fpath+'.jpg'):
+            fpath += '.jpg'
+        elif os.path.isfile(fpath+'.png'):
+            fpath += '.png'
 
     # For some reason instant-ngp allows missing images that exist in the transform but not in the data.
     # Handle this... also handles the above case well too.
