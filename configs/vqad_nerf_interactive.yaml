@@ -12,7 +12,8 @@ global:
     exp_name: 'vqad-nerf-interactive'
 
 dataset:
-    bg_color: 'black'
+    # bg_color: 'black'
+    bg_color: 'white'
 
 trainer:
     save_every: -1
