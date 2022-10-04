@@ -11,7 +11,7 @@
 # 23.54 PSNR at the final validation
 
 global:
-    exp_name: 'test-triplanar-nerf_planes'
+    exp_name: 'test-toon-nerf'
 
 optimizer:
     optimizer_type: 'rmsprop'
@@ -19,7 +19,7 @@ optimizer:
 
 dataset:
     dataset_type: 'multiview'
-    num_rays_sampled_per_img: 4096
+    num_rays_sampled_per_img: 8192
     multiview_dataset_format: 'standard'
     mip: 2
     bg_color: 'white'
@@ -31,15 +31,12 @@ renderer:
     render_batch: 4000
     camera_origin:
         - 0.0
-        - 1.0
-        - 4.0
+        - -4.0
+        - 0.0
     camera_lookat:
         - 0.0
-        - 1.0
         - 0.0
-    camera_clamp:
         - 0.0
-        - 15.0
     shading_mode: 'rb'
     render_res:
         - 800
@@ -48,7 +45,7 @@ renderer:
 trainer:
     trainer_type: 'MultiviewTrainer'
     epochs: 50
-    batch_size: 1
+    batch_size: 2
     model_format: 'full'
     valid_every: 50
     save_every: 10
@@ -65,8 +62,8 @@ grid:
 
 net:
     nef_type: 'NeuralRadianceField'
-    hidden_dim: 128
-    num_layers: 1
+    hidden_dim: 256
+    num_layers: 2
     out_dim: 4
 
 embedder:
