@@ -139,7 +139,7 @@ class MultiviewTrainer(BaseTrainer):
                 if name is not None:
                     out_name += "-" + name
 
-                write_exr(os.path.join(self.valid_log_dir, out_name + ".exr"), exrdict)
+                # write_exr(os.path.join(self.valid_log_dir, out_name + ".exr"), exrdict)
                 write_png(os.path.join(self.valid_log_dir, out_name + ".png"), rb.cpu().image().byte().rgb.numpy())
 
         psnr_total /= len(imgs)
@@ -159,7 +159,8 @@ class MultiviewTrainer(BaseTrainer):
 
         log.info("Beginning validation...")
         
-        data = self.dataset.get_images(split="val", mip=2)
+        # data = self.dataset.get_images(split="val", mip=2)
+        data = self.dataset.get_images(split="test", mip=2)
         imgs = list(data["imgs"])
 
         img_shape = imgs[0].shape

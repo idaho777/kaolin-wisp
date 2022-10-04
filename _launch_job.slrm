@@ -1,0 +1,26 @@
+#!/bin/bash
+
+#SBATCH --job-name=kaolin-wisp
+
+#SBATCH --partition=rtx6000,t4v1,t4v2,p100
+#SBATCH --open-mode=append
+
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --gres=gpu:1
+#SBATCH --mem=32GB
+
+#SBATCH --output=./checkpoint/out/slurm-%j.out
+
+echo `date`: Job $SLURM_JOB_ID running on $(hostname) allocated resources
+
+# bash _run_train.sh $1 $2
+bash _run_train.sh
+
+echo `date`: "Job $SLURM_JOB_ID finished running, exit code: $?"
+
+date=$(date '+%Y-%m-%d')
+archive=$HOME/finished_jobs/$date/$SLURM_JOB_ID
+mkdir -p $archive
+
+cp ./checkpoint/out/slurm-$SLURM_JOB_ID.out $archive/job.out
