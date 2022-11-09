@@ -46,6 +46,7 @@ class ToonTrainer(BaseTrainer):
         self.log_dict['total_loss'] = 0
         self.log_dict['total_iter_count'] = 0
         self.log_dict['rgb_loss'] = 0.0
+        self.log_dict['grad_loss'] = 0.0
 
     def step(self, epoch, n_iter, data):
         """Implement the optimization over image-space loss. """
@@ -57,6 +58,8 @@ class ToonTrainer(BaseTrainer):
         rays = data['rays'].to(self.device)
         img_gts = data['imgs'].to(self.device)
         img_gts = img_gts.reshape(-1, 3)
+        g_gt_img = data['gradients'].to(self.device)
+        g_gt_img = g_gt_img.reshape(-1, 1)
         timer.check("map to device")
 
         self.optimizer.zero_grad(set_to_none=True)
@@ -77,17 +80,17 @@ class ToonTrainer(BaseTrainer):
             rgb_loss = rgb_loss.mean()
 
             # Gradient loss
-            # g_gt_img = self.sobel_filter(data['imgs'])
-            # g_gt_img = (255*g_gt_img).cpu().numpy().astype(np.uint8)
-            g_img = rb.rgb
-            # print(g_gt_img.shape, g_img.shape)
-            # g_gt_img = self.sobel_filter(img)
-
-            # rgb_grads = lap.forward(rb.rgb)
-            # gt_grads = lap.forward(img_gts)
             
-            loss += self.extra_args["rgb_loss"] * rgb_loss
+            g_img = rb.gradient
+            grad_loss = (g_img - g_gt_img).square()
+            grad_loss = grad_loss.mean()
+            if (torch.isnan(grad_loss)):
+                print("NAN")
+            
+            loss += self.extra_args["rgb_loss"] * rgb_loss + 0.1*grad_loss
+            # loss += self.extra_args["rgb_loss"] * rgb_loss + self.extra_args["rgb_loss"]/10. * grad_loss
             self.log_dict['rgb_loss'] += rgb_loss.item()
+            self.log_dict['grad_loss'] += grad_loss.item()
             timer.check("loss")
 
         self.log_dict['total_loss'] += loss.item()
@@ -105,7 +108,9 @@ class ToonTrainer(BaseTrainer):
         self.log_dict['total_loss'] /= self.log_dict['total_iter_count']
         log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'])
         self.log_dict['rgb_loss'] /= self.log_dict['total_iter_count']
-        log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'])
+        log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['grad_loss'])
+        self.log_dict['grad_loss'] /= self.log_dict['total_iter_count']
+        log_text += ' | grad loss: {:>.3E}'.format(self.log_dict['grad_loss'])
         
         for key in self.log_dict:
             if 'loss' in key:
@@ -124,33 +129,9 @@ class ToonTrainer(BaseTrainer):
         Output:
             grad: [batch, C, H, W]
         """
+        import torchvision
+        img = torch.tensor(torchvision.transforms.functional.rgb_to_grayscale(img))
         batch, C, H, W = img.shape
-        # if not isinstance(input, torch.Tensor):
-        #     raise TypeError(f"Input type is not a torch.Tensor. Got {type(input)}")
-        # pix_img = x.numpy()
-        # x_grad = ndimage.sobel(pix_img, axis=1)
-        # y_grad = ndimage.sobel(pix_img, axis=0)
-        # gpix_img = np.hypot(y_grad, x_grad) / (4* 2**2)
-        # device = img.device
-
-        # blur = torch.tensor([-1, 0, 1]) / 2
-        # edge = torch.tensor([1, 2, 1]) / 4
-        # dx_f = blur[None, ...] * edge[..., None]
-        # dy_f = blur[..., None] * edge[None, ...]
-        # dx_f = dx_f.unsqueeze(0).unsqueeze(0).repeat((C, C, 1, 1)).to(device)
-        # dy_f = dy_f.unsqueeze(0).unsqueeze(0).repeat((C, C, 1, 1)).to(device)
-
-        # assert dx_f.shape == dy_f.shape == (C, C, 3, 3)
-
-        # # Call sobel filters
-        # dx = torch.conv2d(input=img, weight=dx_f, padding=1)
-        # dy = torch.conv2d(input=img, weight=dy_f, padding=1)
-
-        # grad = (dx**2 + dy**2).sqrt()
-        # grad = grad.reshape(batch, C, H, W)
-
-        # assert grad.shape == (batch, C, H, W)
-
 
         spatial_derivatives = kornia.filters.spatial_gradient(img)
         dx = spatial_derivatives[:, :, 0]
@@ -194,13 +175,17 @@ class ToonTrainer(BaseTrainer):
 
                 # Image Gradients
                 g_gt_img = grads[idx]
+                g_gt_img = g_gt_img.repeat((1, 1, 3))
                 g_gt_img = (255*g_gt_img).cpu().numpy().astype(np.uint8)
 
                 g_img = rb.gradient
+                g_img = g_img.repeat((1, 1, 3))
+                g_img = (255*g_img).cpu().numpy().astype(np.uint8)
 
                 # write_exr(os.path.join(self.valid_log_dir, out_name + ".exr"), exrdict)
                 write_png(os.path.join(self.valid_log_dir, out_name + ".png"), rb.cpu().image().byte().rgb.numpy())
                 write_png(os.path.join(self.valid_log_dir, "grad-gt" + out_name + ".png"), g_gt_img) 
+                write_png(os.path.join(self.valid_log_dir, "grad" + out_name + ".png"), g_img) 
 
         psnr_total /= len(imgs)
         lpips_total /= len(imgs)  
@@ -226,6 +211,7 @@ class ToonTrainer(BaseTrainer):
         B, H, W, C = data["imgs"].shape
         # grads = list(self.sobel_filter(data["imgs"].permute(B, C, H, W)).permute(B, H, W, C))
         grads = list(self.spatial_derivative(data["imgs"].permute((0, 3, 1, 2))).permute((0, 2, 3, 1)))
+        # grads = data["gradients"]
 
         img_shape = imgs[0].shape
         log.info(f"Loaded validation dataset with {len(imgs)} images at resolution {img_shape[0]}x{img_shape[1]}")
