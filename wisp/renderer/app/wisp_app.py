@@ -119,6 +119,7 @@ class WispApp(ABC):
         # The initialization of these fields is deferred util "on_resize" is first prompted.
         # There we generate a simple billboard GL program with a shared CUDA resource
         # Canvas content will be blitted onto it
+
         self.cuda_buffer: Optional[pycuda.gl.RegisteredImage] = None    # CUDA buffer, as a shared resource with OpenGL
         self.depth_cuda_buffer: Optional[pycuda.gl.RegisteredImage] = None
         self.canvas_program: Optional[gloo.Program] = None              # GL program used to paint a single billboard

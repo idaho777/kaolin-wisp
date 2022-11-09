@@ -43,6 +43,9 @@ class RenderBuffer:
     depth  : Optional[torch.Tensor] = None
     """ depth is usually a distance to the surface hit point."""
 
+    # normal : Optional[torch.Tensor] = None
+    # """ normal is the surface normal at the hit point. """
+
     # Renderbuffer supports additional custom channels passed to the Renderbuffer constructor.
     # Some example of custom channels used throughout wisp:
     #     xyz=None,         # xyz is usually the xyz position for the surface hit point.

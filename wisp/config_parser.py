@@ -291,6 +291,11 @@ def parse_options(return_parser=False):
     renderer_group.add_argument('--shading-mode', type=str, default='normal',
                                 choices=['matcap', 'rb', 'normal'],
                                 help='Shading mode.')
+    # renderer_group.add_argument('--gradients', action='store_true',
+    #                             help='Use gradients.')
+    renderer_group.add_argument('--extra-channels', nargs=1, type=str,
+                                help='Gradients extra channel.')
+
 
     # Parse and run
     if return_parser:

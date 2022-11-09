@@ -89,7 +89,13 @@ class BaseTracer(nn.Module, ABC):
             requested_channels = set([channels])
         else:
             requested_channels = set(channels)
-        extra_channels = requested_channels - self.get_supported_channels()
+        
+        if "extra_channels" in kwargs:
+            extra_channels = set(kwargs["extra_channels"])
+        else:
+            extra_channels = set()
+        
+        extra_channels = extra_channels | requested_channels - self.get_supported_channels()
         unsupported_outputs = extra_channels - nef_channels
         if unsupported_outputs:
             raise Exception(f"Channels {unsupported_outputs} are not supported in the tracer {type(self)} or neural field {type(nef)}.")

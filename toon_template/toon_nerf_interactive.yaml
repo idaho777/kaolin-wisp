@@ -6,7 +6,7 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION & AFFILIATES is strictly prohibited.
 
-parent: 'toon_nerf.yaml'
+parent: 'toon_nerf_sum.yaml'
 
 global:
     exp_name: 'toon-nerf-interactive'

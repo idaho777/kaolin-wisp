@@ -64,16 +64,55 @@ class MultiviewDataset(Dataset):
         self.coords = None
 
         self.data = self.get_images()
+        B, H, W, C = self.data["imgs"].shape
 
         self.img_shape = self.data["imgs"].shape[1:3]
         self.num_imgs = self.data["imgs"].shape[0]
+        self.data["gradients"] = self.sobel_filter(self.data["imgs"].reshape(B, C, H, W))
+        self.data["gradients"] = self.data["gradients"].reshape(B, H, W, C)
 
         self.data["imgs"] = self.data["imgs"].reshape(self.num_imgs, -1, 3)
         self.data["rays"] = self.data["rays"].reshape(self.num_imgs, -1, 3)
+        self.data["gradients"] = self.data["gradients"].reshape(self.num_imgs, -1, 3)
         if "depths" in self.data:
             self.data["depths"] = self.data["depths"].reshape(self.num_imgs, -1, 1)
         if "masks" in self.data:
             self.data["masks"] = self.data["masks"].reshape(self.num_imgs, -1, 1)
+        # if "gradients" in self.data:
+        
+
+    def sobel_filter(self, img:torch.Tensor):
+        """
+        x: image to sobel over [batch, C, H, W]
+        """
+        batch, C, H, W = img.shape
+        # if not isinstance(input, torch.Tensor):
+        #     raise TypeError(f"Input type is not a torch.Tensor. Got {type(input)}")
+        # pix_img = x.numpy()
+        # x_grad = ndimage.sobel(pix_img, axis=1)
+        # y_grad = ndimage.sobel(pix_img, axis=0)
+        # gpix_img = np.hypot(y_grad, x_grad) / (4* 2**2)
+
+        blur = torch.tensor([-1, 0, 1]) / 2
+        edge = torch.tensor([1, 2, 1]) / 4
+        dx_f = blur[None, ...] * edge[..., None]
+        dy_f = blur[..., None] * edge[None, ...]
+        dx_f = dx_f.unsqueeze(0).unsqueeze(0).repeat((C, C, 1, 1))
+        dy_f = dy_f.unsqueeze(0).unsqueeze(0).repeat((C, C, 1, 1))
+
+        assert dx_f.shape == dy_f.shape == (C, C, 3, 3)
+
+        # Call sobel filters
+        dx = torch.conv2d(input=img, weight=dx_f, padding=1)
+        dy = torch.conv2d(input=img, weight=dy_f, padding=1)
+
+        assert dx.shape == dy.shape == (batch, C, H, W)
+        grad = (dx**2 + dy**2).sqrt()
+        grad = grad.reshape(batch, C, H, W)
+
+        assert grad.shape == (batch, C, H, W)
+
+        return grad
 
     def get_images(self, split='train', mip=None):
         """Will return the dictionary of image tensors.
@@ -91,6 +130,7 @@ class MultiviewDataset(Dataset):
         if self.multiview_dataset_format == "standard":
             data = load_nerf_standard_data(self.root, split,
                                             bg_color=self.bg_color, num_workers=self.dataset_num_workers, mip=self.mip)
+            
         elif self.multiview_dataset_format == "rtmv":
             if split == 'train':
                 data = load_rtmv_data(self.root, split,

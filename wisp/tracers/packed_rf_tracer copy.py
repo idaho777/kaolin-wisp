@@ -35,7 +35,7 @@ class PackedRFTracer(BaseTracer):
         Returns:
             (set): Set of channel strings.
         """
-        return {"depth", "hit", "rgb", "alpha", "gradient"}
+        return {"depth", "hit", "rgb", "alpha"}
 
     def get_required_nef_channels(self):
         """Returns the channels required by neural fields to be compatible with this tracer.
@@ -92,7 +92,7 @@ class PackedRFTracer(BaseTracer):
         # Compute the color and density for each ray and their samples
         hit_ray_d = rays.dirs.index_select(0, ridx)
         color, density = nef(coords=samples, ray_d=hit_ray_d, pidx=pidx, lod_idx=lod_idx,
-                                                channels=["rgb", "density"])
+                             channels=["rgb", "density"])
 
         timer.check("RGBA")
         del ridx, rays
@@ -109,8 +109,6 @@ class PackedRFTracer(BaseTracer):
             timer.check("Integration")
         else:
             depth = None
-
-        
 
         alpha = spc_render.sum_reduce(transmittance, boundary)
         timer.check("Sum Reduce")
