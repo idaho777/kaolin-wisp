@@ -11,7 +11,7 @@
 # 23.54 PSNR at the final validation
 
 global:
-    exp_name: 'toon-nerf'
+    exp_name: 'toon-nerf-reg'
 
 optimizer:
     # optimizer_type: 'rmsprop'
@@ -22,18 +22,18 @@ optimizer:
 
 dataset:
     dataset_type: 'multiview'
-    num_rays_sampled_per_img: 4096
-    # num_rays_sampled_per_img: 8192
+    # num_rays_sampled_per_img: 4096
+    num_rays_sampled_per_img: 8192
     multiview_dataset_format: 'standard'
-    mip: 2
+    mip: 1
     bg_color: 'white'
 
 renderer:
     tracer_type: 'PackedRFTracer'
-    # num_steps: 512
-    num_steps: 256
+    num_steps: 512
+    # num_steps: 256
     raymarch_type: 'ray'
-    render_batch: 4000
+    render_batch: 8192
     camera_origin:
         - 0.0
         - -4.0
@@ -46,8 +46,6 @@ renderer:
     render_res:
         - 1000
         - 1000
-    extra_channels:
-        - 'gradient'
     # tracer_type: 'PackedSDFTracer'
     # num_steps: 128
     # render_batch: 0
@@ -66,24 +64,37 @@ trainer:
     trainer_type: 'ToonTrainer'
     batch_size: 2
     model_format: 'full'
-    # epochs: 100
-    # valid_every: 100
-    # save_every: 100
-    # render_every: 100
+    only_last: 'True'
+    epochs: 2000
+    valid_every: 2000
+    save_every: 2000
+    render_every: 2000
+    # epochs: 1000
+    # valid_every: 1000
+    # save_every: 1000
+    # render_every: 1000
+    # epochs: 200
+    # valid_every: 200
+    # save_every: 200
+    # render_every: 200
     # epochs: 50
     # valid_every: 50
     # save_every: 50
     # render_every: 50
-    epochs: 8
-    valid_every: 8
-    save_every: 8
-    render_every: 8
+    # epochs: 8
+    # valid_every: 8
+    # save_every: 8
+    # render_every: 8
+    # epochs: 1
+    # valid_every: 1
+    # save_every: 1
+    # render_every: 1
 
 grid:
     # grid_type: 'OctreeGrid'
     # interpolation_type: 'linear'
     # multiscale_type: 'sum'
-    # feature_dim: 5
+    # feature_dim: 16
     # feature_std: 0.01
     # base_lod: 8
     # num_lods: 1
@@ -105,9 +116,9 @@ grid:
     # codebook_bitwidth: 19
 
 net:
-    nef_type: 'NeuralRadianceField'
-    hidden_dim: 128
-    num_layers: 1
+    nef_type: 'ToonNeuralField'
+    hidden_dim: 256
+    num_layers: 2
     out_dim: 4
 
 embedder:

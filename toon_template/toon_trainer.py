@@ -21,6 +21,7 @@ from wisp.core import Rays
 
 from scipy import ndimage
 import numpy as np
+import torch.nn as nn
 
 import kornia
 
@@ -58,8 +59,6 @@ class ToonTrainer(BaseTrainer):
         rays = data['rays'].to(self.device)
         img_gts = data['imgs'].to(self.device)
         img_gts = img_gts.reshape(-1, 3)
-        g_gt_img = data['gradients'].to(self.device)
-        g_gt_img = g_gt_img.reshape(-1, 1)
         timer.check("map to device")
 
         self.optimizer.zero_grad(set_to_none=True)
@@ -67,30 +66,25 @@ class ToonTrainer(BaseTrainer):
 
         loss = 0
         with torch.cuda.amp.autocast():
-            rb = self.pipeline(rays=rays, lod_idx=None, channels=["rgb", "density"], extra_channels=["gradient"])
-            # print(rb.rgb.shape, img_gts.shape)
+            rb = self.pipeline(rays=rays, lod_idx=None, channels=["rgb", "density"])
             timer.check("inference")
 
+            # Color palette decoder
+            rgb_labels = self.pipeline.nef.palette_decoder(rb.rgb[..., :3])
+            target_labels = self.pipeline.nef.img_2_palette_labels(img_gts[..., :3], self.pipeline.nef.palette).squeeze(0)
+            
+
+            ce_loss = nn.CrossEntropyLoss()(rgb_labels, target_labels)
+            # rgb_toon = self.pipeline.nef.palette_labels_2_img(torch.argmax(rgb_labels, dim=-1), self.pipeline.nef.palette)
+
             # RGB Loss
-            #rgb_loss = F.mse_loss(rb.rgb, img_gts, reduction='none')
-            # Come up with a better loss?
-            # - Toon shading loss
-            # - Color Palette Loss
             rgb_loss = torch.abs(rb.rgb[..., :3] - img_gts[..., :3])
             rgb_loss = rgb_loss.mean()
 
-            # Gradient loss
-            
-            g_img = rb.gradient
-            grad_loss = (g_img - g_gt_img).square()
-            grad_loss = grad_loss.mean()
-            if (torch.isnan(grad_loss)):
-                print("NAN")
-            
-            loss += self.extra_args["rgb_loss"] * rgb_loss + 0.1*grad_loss
-            # loss += self.extra_args["rgb_loss"] * rgb_loss + self.extra_args["rgb_loss"]/10. * grad_loss
+            loss += self.extra_args["rgb_loss"] * rgb_loss
+            loss += self.extra_args["rgb_loss"] * ce_loss
             self.log_dict['rgb_loss'] += rgb_loss.item()
-            self.log_dict['grad_loss'] += grad_loss.item()
+            self.log_dict['rgb_loss'] += ce_loss.item()
             timer.check("loss")
 
         self.log_dict['total_loss'] += loss.item()
@@ -108,9 +102,7 @@ class ToonTrainer(BaseTrainer):
         self.log_dict['total_loss'] /= self.log_dict['total_iter_count']
         log_text += ' | total loss: {:>.3E}'.format(self.log_dict['total_loss'])
         self.log_dict['rgb_loss'] /= self.log_dict['total_iter_count']
-        log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['grad_loss'])
-        self.log_dict['grad_loss'] /= self.log_dict['total_iter_count']
-        log_text += ' | grad loss: {:>.3E}'.format(self.log_dict['grad_loss'])
+        log_text += ' | rgb loss: {:>.3E}'.format(self.log_dict['rgb_loss'])
         
         for key in self.log_dict:
             if 'loss' in key:
@@ -119,26 +111,6 @@ class ToonTrainer(BaseTrainer):
         log.info(log_text)
 
         self.pipeline.eval()
-
-
-    def spatial_derivative(self, img:torch.Tensor):
-        """
-        Input:
-            x: image to sobel over [batch, C, H, W]
-
-        Output:
-            grad: [batch, C, H, W]
-        """
-        import torchvision
-        img = torch.tensor(torchvision.transforms.functional.rgb_to_grayscale(img))
-        batch, C, H, W = img.shape
-
-        spatial_derivatives = kornia.filters.spatial_gradient(img)
-        dx = spatial_derivatives[:, :, 0]
-        dy = spatial_derivatives[:, :, 1]
-        assert dx.shape == dy.shape == (batch, C, H, W)
-        gradient = (dx**2 + dy**2).sqrt()
-        return gradient
 
 
     def evaluate_metrics(self, epoch, rays, imgs, lod_idx, name=None, grads=None):
@@ -155,17 +127,28 @@ class ToonTrainer(BaseTrainer):
                 rays = Rays(ray_o, ray_d, dist_min=rays.dist_min, dist_max=rays.dist_max)
                 rays = rays.reshape(-1, 3)
                 rays = rays.to('cuda')
+                # rb = self.renderer.render(self.pipeline, rays)
                 rb = self.renderer.render(self.pipeline, rays, lod_idx=lod_idx)
                 rb = rb.reshape(*img.shape[:2], -1)
                 
                 rb.view = None
                 rb.hit = None
-
                 rb.gts = img.cuda()
-                rb.err = (rb.gts[...,:3] - rb.rgb[...,:3])**2
-                psnr_total += psnr(rb.rgb[...,:3], rb.gts[...,:3])
-                lpips_total += lpips(rb.rgb[...,:3], rb.gts[...,:3], lpips_model)
-                ssim_total += ssim(rb.rgb[...,:3], rb.gts[...,:3])
+
+                rgb_labels = self.pipeline.nef.palette_decoder(rb.rgb[..., :3])
+                target_labels = self.pipeline.nef.img_2_palette_labels(rb.gts[..., :3], self.pipeline.nef.palette).squeeze(0)
+
+                rgb_toon = self.pipeline.nef.palette_labels_2_img(torch.argmax(rgb_labels, dim=-1), self.pipeline.nef.palette)
+                gt_toon = self.pipeline.nef.palette_labels_2_img(torch.argmax(target_labels, dim=-1), self.pipeline.nef.palette)
+
+                rb.err = (gt_toon[...,:3] - rgb_toon[...,:3])**2
+                psnr_total += psnr(rgb_toon[...,:3], gt_toon[...,:3])
+                lpips_total += lpips(rgb_toon[...,:3], gt_toon[...,:3], lpips_model)
+                ssim_total += ssim(rgb_toon[...,:3], gt_toon[...,:3])
+                # rb.err = (rb.gts[...,:3] - rb.rgb[...,:3])**2
+                # psnr_total += psnr(rb.rgb[...,:3], rb.gts[...,:3])
+                # lpips_total += lpips(rb.rgb[...,:3], rb.gts[...,:3], lpips_model)
+                # ssim_total += ssim(rb.rgb[...,:3], rb.gts[...,:3])
                 
                 exrdict = rb.reshape(*img.shape[:2], -1).cpu().exr_dict()
                 
@@ -173,19 +156,12 @@ class ToonTrainer(BaseTrainer):
                 if name is not None:
                     out_name += "-" + name
 
-                # Image Gradients
-                g_gt_img = grads[idx]
-                g_gt_img = g_gt_img.repeat((1, 1, 3))
-                g_gt_img = (255*g_gt_img).cpu().numpy().astype(np.uint8)
-
-                g_img = rb.gradient
-                g_img = g_img.repeat((1, 1, 3))
-                g_img = (255*g_img).cpu().numpy().astype(np.uint8)
-
                 # write_exr(os.path.join(self.valid_log_dir, out_name + ".exr"), exrdict)
-                write_png(os.path.join(self.valid_log_dir, out_name + ".png"), rb.cpu().image().byte().rgb.numpy())
-                write_png(os.path.join(self.valid_log_dir, "grad-gt" + out_name + ".png"), g_gt_img) 
-                write_png(os.path.join(self.valid_log_dir, "grad" + out_name + ".png"), g_img) 
+                write_png(os.path.join(self.valid_log_dir, "label-" + out_name + ".png"), (255*rgb_toon).cpu().byte().numpy())
+                write_png(os.path.join(self.valid_log_dir, "label-gt-" + out_name + ".png"), (255*gt_toon).cpu().byte().numpy())
+
+                write_png(os.path.join(self.valid_log_dir, "reg-"+out_name + ".png"), (rb).cpu().image().byte().rgb.numpy())
+                write_png(os.path.join(self.valid_log_dir, "reg-gt-" + out_name + ".png"), (255*rb.gts).cpu().byte().numpy())
 
         psnr_total /= len(imgs)
         lpips_total /= len(imgs)  
@@ -206,12 +182,9 @@ class ToonTrainer(BaseTrainer):
         log.info("Beginning validation...")
         
         # data = self.dataset.get_images(split="val", mip=2)
-        data = self.dataset.get_images(split="test", mip=1)
+        data = self.dataset.get_images(split="test", mip=2)
         imgs = list(data["imgs"])
         B, H, W, C = data["imgs"].shape
-        # grads = list(self.sobel_filter(data["imgs"].permute(B, C, H, W)).permute(B, H, W, C))
-        grads = list(self.spatial_derivative(data["imgs"].permute((0, 3, 1, 2))).permute((0, 2, 3, 1)))
-        # grads = data["gradients"]
 
         img_shape = imgs[0].shape
         log.info(f"Loaded validation dataset with {len(imgs)} images at resolution {img_shape[0]}x{img_shape[1]}")
@@ -223,8 +196,9 @@ class ToonTrainer(BaseTrainer):
 
         metric_dicts = []
         lods = list(range(self.pipeline.nef.num_lods))[::-1]
+        # lods = lods[1:]
         for lod in lods:
-            metric_dicts.append(self.evaluate_metrics(epoch, data["rays"], imgs, lod, f"lod{lod}", grads=grads))
+            metric_dicts.append(self.evaluate_metrics(epoch, data["rays"], imgs, lod, f"lod{lod}"))
         df = pd.DataFrame(metric_dicts)
         df['lod'] = lods
         df.to_csv(os.path.join(self.valid_log_dir, "lod.csv"))

@@ -293,8 +293,8 @@ def parse_options(return_parser=False):
                                 help='Shading mode.')
     # renderer_group.add_argument('--gradients', action='store_true',
     #                             help='Use gradients.')
-    renderer_group.add_argument('--extra-channels', nargs=1, type=str,
-                                help='Gradients extra channel.')
+    # renderer_group.add_argument('--extra-channels', nargs=1, type=str,
+    #                             help='Gradients extra channel.')
 
 
     # Parse and run
@@ -449,4 +449,9 @@ def get_modules_from_config(args):
                 train_dataset.init_from_mesh(args.dataset_path, args.mode_mesh_norm)
     else:
         raise ValueError(f'"{args.dataset_type}" unrecognized dataset_type')
+
+    if pipeline.nef.get_nef_type() == 'toon_nerf':
+        pipeline.nef.init_palette(train_dataset.palette, device)
+        pipeline.to(device)
+
     return pipeline, train_dataset, device

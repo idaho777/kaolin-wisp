@@ -22,6 +22,4 @@ class SampleRays:
         out = {}
         out['rays'] = inputs['rays'][ray_idx].contiguous()
         out['imgs'] = inputs['imgs'][ray_idx].contiguous()
-        if 'gradients' in inputs:
-            out['gradients'] = inputs['gradients'][ray_idx].contiguous()
         return out

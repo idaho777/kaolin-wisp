@@ -54,6 +54,10 @@ class ToonNeuralField(BaseNeuralField):
                                     num_layers=self.num_layers,
                                     hidden_dim=self.hidden_dim,
                                     skip=[])
+        
+    def init_palette(self, palette, device):
+        self.palette = palette.to(device)
+        self.palette_decoder = ColorDecoder(input_ch=3, output_ch=len(self.palette))
 
 
     def init_grid(self):
@@ -138,3 +142,50 @@ class ToonNeuralField(BaseNeuralField):
         timer.check("rf_rgba_activation")
         
         return dict(rgb=colors, density=density)
+
+    
+    def img_2_palette_labels(self, img, color_palette):
+        '''
+        Convert image values to one-hot vectors where the vectors index the color_palette.
+        Params:
+            img: [batch_size*num_pixels, 3]
+            color_palette: [LabColors]
+        '''
+
+        color_palette = color_palette.transpose(0, 1)   # [3, len(color_palette)]
+        diffs = torch.sum(torch.square(img[..., None] - color_palette[None, None, ...]), dim=-2)
+        min_indices = torch.argmin(diffs, dim=-1)
+        one_hot = torch.zeros_like(diffs).scatter_(dim=-1, index=min_indices.unsqueeze(2), value=1.)
+        return one_hot
+
+    def palette_labels_2_img(self, encoding, color_palette):
+        '''
+        Converts encoded image to rgb image using color_palette
+        '''
+        return color_palette[encoding]
+
+
+class ColorDecoder(nn.Module):
+    """
+    color Network
+    Turns 32 length feature from Decoder Network into 3 channel RGB
+    """
+
+    def __init__(self, input_ch=32, output_ch=3):
+        super().__init__()
+        self.input_ch = input_ch
+        self.output_ch = output_ch
+
+        # color Network
+        self.color = nn.Sequential(
+            nn.Linear(self.input_ch, 64),
+            nn.LeakyReLU(),
+            nn.Linear(64, self.output_ch),
+            # nn.Softmax(dim=-1),
+        )
+
+
+    def forward(self, input):
+        # return input
+        output = self.color(input)
+        return output

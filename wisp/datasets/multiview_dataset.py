@@ -15,6 +15,12 @@ from wisp.core import Rays
 
 import kornia
 
+from torchvision import transforms
+import extcolors
+from torch import nn
+
+from colormath.color_objects import sRGBColor, LabColor
+from colormath.color_conversions import convert_color
 
 class MultiviewDataset(Dataset):
     """This is a static multiview image dataset class.
@@ -70,62 +76,27 @@ class MultiviewDataset(Dataset):
 
         self.img_shape = self.data["imgs"].shape[1:3]
         self.num_imgs = self.data["imgs"].shape[0]
-        self.data["gradients"] = self.sobel_filter(self.data["imgs"].permute(0, 3, 1, 2))
-        self.data["gradients"] = self.data["gradients"].permute(0, 2, 3, 1)
+        self.palette = self.extract_palette(self.data["imgs"])
 
         self.data["imgs"] = self.data["imgs"].reshape(self.num_imgs, -1, 3)
         self.data["rays"] = self.data["rays"].reshape(self.num_imgs, -1, 3)
-        self.data["gradients"] = self.data["gradients"].reshape(self.num_imgs, -1, 1)
         if "depths" in self.data:
             self.data["depths"] = self.data["depths"].reshape(self.num_imgs, -1, 1)
         if "masks" in self.data:
             self.data["masks"] = self.data["masks"].reshape(self.num_imgs, -1, 1)
-        # if "gradients" in self.data:
-        
 
-    def sobel_filter(self, img:torch.Tensor):
-        """
-        x: image to sobel over [batch, C, H, W]
-        """
-        # import torchvision
-        # img = torch.tensor(torchvision.transforms.functional.rgb_to_grayscale(img))
-        # batch, C, H, W = img.shape
-        # # if not isinstance(input, torch.Tensor):
-        # #     raise TypeError(f"Input type is not a torch.Tensor. Got {type(input)}")
-        # # pix_img = x.numpy()
-        # # x_grad = ndimage.sobel(pix_img, axis=1)
-        # # y_grad = ndimage.sobel(pix_img, axis=0)
-        # # gpix_img = np.hypot(y_grad, x_grad) / (4* 2**2)
 
-        # blur = torch.tensor([-1, 0, 1]) / 2
-        # edge = torch.tensor([1, 2, 1]) / 4
-        # dx_f = blur[None, ...] * edge[..., None]
-        # dy_f = blur[..., None] * edge[None, ...]
-        # dx_f = dx_f.unsqueeze(0).unsqueeze(0).repeat((C, C, 1, 1))
-        # dy_f = dy_f.unsqueeze(0).unsqueeze(0).repeat((C, C, 1, 1))
+    def extract_palette(self, imgs):
+        # palette = set()
+        # for img in imgs:
+        #     pil_img = transforms.ToPILImage()(torch.permute(img, (2, 0, 1)))
+        #     colors, p_count = extcolors.extract_from_image(pil_img, tolerance=15)
+        #     color_count = [k[0] for k in colors if k[1] > 0.0001*p_count]
+        #     # color_count = [k[0] for k in colors if k[1] > 50]
+        #     palette.update(color_count)
+        # return torch.tensor(list(palette))/255
 
-        # assert dx_f.shape == dy_f.shape == (C, C, 3, 3)
-
-        # # Call sobel filters
-        # dx = torch.conv2d(input=img, weight=dx_f, padding=1)
-        # dy = torch.conv2d(input=img, weight=dy_f, padding=1)
-
-        # assert dx.shape == dy.shape == (batch, C, H, W)
-        # grad = (dx**2 + dy**2).sqrt()
-        # grad = grad.reshape(batch, C, H, W)
-
-        # assert grad.shape == (batch, C, H, W)
-        # return grad
-        import torchvision
-        img = torch.tensor(torchvision.transforms.functional.rgb_to_grayscale(img))
-        batch, C, H, W = img.shape
-
-        spatial_derivatives = kornia.filters.spatial_gradient(img)
-        dx = spatial_derivatives[:, :, 0]
-        dy = spatial_derivatives[:, :, 1]
-        assert dx.shape == dy.shape == (batch, C, H, W)
-        gradient = (dx**2 + dy**2).sqrt()
-        return gradient
+        return torch.tensor([[71, 189,150],[251, 231,230],[80, 36,27],[253, 176,180],[246, 120,94],[233, 185,97],[90, 59,48],[251, 251,251],[32, 25,23]])/255.
 
 
     def get_images(self, split='train', mip=None):
@@ -177,7 +148,6 @@ class MultiviewDataset(Dataset):
         out = {}
         out['rays'] = self.data["rays"][idx]
         out['imgs'] = self.data["imgs"][idx]
-        out['gradients'] = self.data["gradients"][idx]
 
         if self.transform is not None:
             out = self.transform(out)
